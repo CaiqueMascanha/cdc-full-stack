@@ -1,0 +1,326 @@
+# =============================================================
+# CDC Full Stack - Docker Compose
+# =============================================================
+# Versões:
+#   Kafka:        4.1.1  (KRaft - sem Zookeeper)
+#   Kafka Connect: 4.1.1 (com Debezium 3.4.2)
+#   Debezium:     3.4.2.Final
+#   PostgreSQL:   17
+#   Spark:        4.0 (bitnami)
+#   MinIO:        latest (RELEASE)
+#   Redis:        7.4
+#   Schema Registry: Confluent 7.9
+#   Kafka UI:     latest (Provectus)
+# =============================================================
+
+name: cdc-fullstack
+
+networks:
+  cdc-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  minio_data:
+  redis_data:
+  kafka_data:
+  connect_plugins:
+
+# =============================================================
+# SERVIÇOS
+# =============================================================
+services:
+  # -----------------------------------------------------------
+  # POSTGRESQL 17 - Banco de origem CDC
+  # -----------------------------------------------------------
+  postgres:
+    image: postgres:17
+    container_name: cdc-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cdc_user
+      POSTGRES_PASSWORD: cdc_pass
+      POSTGRES_DB: emprestimos_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts/postgres:/docker-entrypoint-initdb.d
+    command:
+      - 'postgres'
+      - '-c'
+      - 'wal_level=logical'
+      - '-c'
+      - 'max_replication_slots=10'
+      - '-c'
+      - 'max_wal_senders=10'
+    networks:
+      - cdc-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U cdc_user -d emprestimos_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -----------------------------------------------------------
+  # KAFKA 4.1.1 - KRaft Mode (sem Zookeeper)
+  # -----------------------------------------------------------
+  kafka:
+    image: apache/kafka:4.1.1
+    container_name: cdc-kafka
+    restart: unless-stopped
+    ports:
+      - '9092:9092'
+      - '9093:9093'
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - cdc-network
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          '/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1',
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # -----------------------------------------------------------
+  # SCHEMA REGISTRY - Confluent 7.9
+  # -----------------------------------------------------------
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.9.0
+    container_name: cdc-schema-registry
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - '8081:8081'
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    networks:
+      - cdc-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8081/subjects']
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # -----------------------------------------------------------
+  # KAFKA CONNECT + DEBEZIUM 3.4.2
+  # -----------------------------------------------------------
+  kafka-connect:
+    image: debezium/connect:3.0.0.Final
+    container_name: cdc-kafka-connect
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - '8083:8083'
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: cdc-connect-cluster
+      CONFIG_STORAGE_TOPIC: cdc.connect.configs
+      OFFSET_STORAGE_TOPIC: cdc.connect.offsets
+      STATUS_STORAGE_TOPIC: cdc.connect.status
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: 'false'
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: 'false'
+      CONNECT_PLUGIN_PATH: /kafka/connect,/kafka/connect/debezium
+    volumes:
+      - connect_plugins:/kafka/connect/extra-plugins
+    networks:
+      - cdc-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8083/connectors']
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
+
+  # -----------------------------------------------------------
+  # KAFKA UI - Provectus (visualização de tópicos/conectores)
+  # -----------------------------------------------------------
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: cdc-kafka-ui
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - '8080:8080'
+    environment:
+      KAFKA_CLUSTERS_0_NAME: cdc-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: debezium
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect:8083
+      DYNAMIC_CONFIG_ENABLED: 'true'
+    networks:
+      - cdc-network
+
+  # -----------------------------------------------------------
+  # APACHE SPARK 4.0 - Master
+  # -----------------------------------------------------------
+  spark-master:
+    image: apache/spark:4.0.1-scala2.13-java17-python3-ubuntu
+    container_name: cdc-spark-master
+    user: root
+    restart: unless-stopped
+    entrypoint:
+      ['/opt/spark/bin/spark-class', 'org.apache.spark.deploy.master.Master']
+    environment:
+      SPARK_MASTER_HOST: spark-master
+      SPARK_MASTER_PORT: 7077
+      SPARK_MASTER_WEBUI_PORT: 8080
+      HOME: /root
+    ports:
+      - '7077:7077'
+      - '8082:8080' # Spark Master UI
+    networks:
+      - cdc-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8080']
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - ./spark-jobs:/opt/spark-jobs
+
+  # -----------------------------------------------------------
+  # APACHE SPARK 4.0.1 - Worker (imagem oficial Apache)
+  # -----------------------------------------------------------
+  spark-worker:
+    image: apache/spark:4.0.1-scala2.13-java17-python3-ubuntu
+    container_name: cdc-spark-worker
+    user: root
+    restart: unless-stopped
+    entrypoint:
+      [
+        '/opt/spark/bin/spark-class',
+        'org.apache.spark.deploy.worker.Worker',
+        'spark://spark-master:7077',
+      ]
+    depends_on:
+      spark-master:
+        condition: service_healthy
+    environment:
+      SPARK_WORKER_MEMORY: 2g
+      SPARK_WORKER_CORES: 2
+      SPARK_WORKER_WEBUI_PORT: 8081
+      HOME: /root
+    ports:
+      - '8085:8081' # Spark Worker UI
+    networks:
+      - cdc-network
+    volumes:
+      - ./spark-jobs:/opt/spark-jobs
+
+  # -----------------------------------------------------------
+  # MINIO - Data Lake (S3-compatible)
+  # -----------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: cdc-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - '9000:9000' # S3 API
+      - '9001:9001' # Console UI
+    volumes:
+      - minio_data:/data
+    networks:
+      - cdc-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # -----------------------------------------------------------
+  # MINIO MC - Inicialização de buckets
+  # -----------------------------------------------------------
+  minio-init:
+    image: minio/mc:latest
+    container_name: cdc-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 minioadmin minioadmin123;
+        mc mb --ignore-existing local/raw;
+        mc mb --ignore-existing local/silver
+        mc mb --ignore-existing local/gold;
+        echo 'Buckets criados com sucesso!';
+        exit 0;
+      "
+    networks:
+      - cdc-network
+
+  # -----------------------------------------------------------
+  # REDIS 7.4 - Cache de métricas em tempo real
+  # -----------------------------------------------------------
+  redis:
+    image: redis:7.4-alpine
+    container_name: cdc-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    networks:
+      - cdc-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -----------------------------------------------------------
+  # REDIS INSIGHT - UI para Redis
+  # -----------------------------------------------------------
+  redis-insight:
+    image: redis/redisinsight:latest
+    container_name: cdc-redis-insight
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - '5540:5540'
+    networks:
+      - cdc-network

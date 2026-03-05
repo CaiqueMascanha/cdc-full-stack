@@ -1,0 +1,37 @@
+{
+  "name": "cdc-postgres-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+
+    "database.hostname": "cdc-postgres",
+    "database.port": "5432",
+    "database.user": "cdc_user",
+    "database.password": "cdc_pass",
+    "database.dbname": "emprestimos_db",
+    "database.server.name": "cdc",
+
+    "plugin.name": "pgoutput",
+
+    "table.include.list": "public.emprestimos,public.emprestimos_aprovados",
+
+    "topic.prefix": "cdc",
+
+    "slot.name": "debezium_slot",
+    "publication.name": "debezium_publication",
+
+    "snapshot.mode": "initial",
+
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "true",
+    "value.converter.schemas.enable": "true",
+
+    "decimal.handling.mode": "double",
+    "time.precision.mode": "connect",
+    "tombstones.on.delete": "false",
+
+    "heartbeat.interval.ms": "10000",
+    "poll.interval.ms": "500"
+  }
+}
