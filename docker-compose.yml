@@ -197,6 +197,9 @@ services:
     restart: unless-stopped
     entrypoint:
       ['/opt/spark/bin/spark-class', 'org.apache.spark.deploy.master.Master']
+    depends_on:
+      spark-jars-downloader:
+        condition: service_completed_successfully
     environment:
       SPARK_MASTER_HOST: spark-master
       SPARK_MASTER_PORT: 7077
@@ -233,6 +236,8 @@ services:
     depends_on:
       spark-master:
         condition: service_healthy
+      spark-jars-downloader:
+        condition: service_completed_successfully
     environment:
       SPARK_WORKER_MEMORY: 2g
       SPARK_WORKER_CORES: 2
@@ -244,6 +249,24 @@ services:
       - cdc-network
     volumes:
       - ./spark-jobs:/opt/spark-jobs
+
+  spark-jars-downloader:
+    image: curlimages/curl:latest
+    container_name: cdc-spark-jars-downloader
+    user: root
+    volumes:
+      - ./spark-jobs/jars:/jars
+    command: >-
+      sh -c "mkdir -p /jars &&
+      echo '>>> Baixando spark-sql-kafka...' &&
+      curl -fL -o /jars/spark-sql-kafka-4.0-scala213.jar 'https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.13/4.0.0/spark-sql-kafka-0-10_2.13-4.0.0.jar' &&
+      echo '>>> Baixando spark-token-provider...' &&
+      curl -fL -o /jars/spark-token-provider-4.0-scala213.jar 'https://repo1.maven.org/maven2/org/apache/spark/spark-token-provider-kafka-0-10_2.13/4.0.0/spark-token-provider-kafka-0-10_2.13-4.0.0.jar' &&
+      echo '>>> Baixando kafka-clients...' &&
+      curl -fL -o /jars/kafka-clients.jar 'https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.9.0/kafka-clients-3.9.0.jar' &&
+      echo '>>> Baixando commons-pool2...' &&
+      curl -fL -o /jars/commons-pool2.jar 'https://repo1.maven.org/maven2/org/apache/commons/commons-pool2/2.12.0/commons-pool2-2.12.0.jar' &&
+      echo '>>> Todos os JARs baixados!'"
 
   # -----------------------------------------------------------
   # MINIO - Data Lake (S3-compatible)
