@@ -15,7 +15,7 @@ Além do pipeline de dados, o projeto inclui uma aplicação Full Stack:
 2. **Ingestão (CDC):** Kafka Connect + Debezium capturam as mudanças e publicam no Apache Kafka (KRaft).
 3. **Processamento:** Apache Spark consome os tópicos, realiza as transformações e orquestra a saída.
 4. **Armazenamento:**
-   - **Data Lake (MinIO):** Armazenamento estruturado na arquitetura Medallion (`raw`, `silver`, `gold`).
+   - **Delta Lake (MinIO):** Armazenamento estruturado na arquitetura Medallion (`raw`, `silver`, `gold`).
    - **Camada de Serviço (Redis):** Cache de métricas em tempo real para consumo do Dashboard.
 
 ---
