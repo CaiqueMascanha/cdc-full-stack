@@ -266,6 +266,14 @@ services:
       curl -fL -o /jars/kafka-clients.jar 'https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.9.0/kafka-clients-3.9.0.jar' &&
       echo '>>> Baixando commons-pool2...' &&
       curl -fL -o /jars/commons-pool2.jar 'https://repo1.maven.org/maven2/org/apache/commons/commons-pool2/2.12.0/commons-pool2-2.12.0.jar' &&
+      echo '>>> Baixando delta-spark...' &&
+      curl -fL -o /jars/delta-spark.jar 'https://repo1.maven.org/maven2/io/delta/delta-spark_2.13/4.0.0/delta-spark_2.13-4.0.0.jar' &&
+      echo '>>> Baixando delta-storage...' &&
+      curl -fL -o /jars/delta-storage.jar 'https://repo1.maven.org/maven2/io/delta/delta-storage/4.0.0/delta-storage-4.0.0.jar' &&
+      echo '>>> Baixando hadoop-aws (S3/MinIO)...' &&
+      curl -fL -o /jars/hadoop-aws.jar 'https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.4/hadoop-aws-3.3.4.jar' &&
+      echo '>>> Baixando aws-sdk-bundle...' &&
+      curl -fL -o /jars/aws-sdk-bundle.jar 'https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.262/aws-java-sdk-bundle-1.12.262.jar' &&
       echo '>>> Todos os JARs baixados!'"
 
   # -----------------------------------------------------------

@@ -52,7 +52,7 @@ Para rodar o job do Spark, você precisa acessar o container do Spark Master ou 
 docker exec -it cdc-spark-master rm -rf /tmp/checkpoints/
 
 # Inicie o job do Spark
-docker exec -it cdc-spark-master /opt/spark-jobs/run.sh /opt/spark-jobs/jobs/emprestimos/stream.py
+docker exec -it cdc-spark-master /opt/spark-jobs/run.sh jobs/emprestimos/stream.py
 ```
 
 ### 4. Executando o Painel Full Stack
