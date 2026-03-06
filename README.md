@@ -1,24 +1,63 @@
-# 🚀 CDC Full Stack
+# 🚀 CDC Full Stack Pipeline
 
-## ⚡ Execução
+## 📋 Descrição
 
-### Apache Spark
+Este projeto é uma implementação de um pipeline de **Change Data Capture (CDC)** utilizando tecnologias modernas para ingestão e processamento de dados em tempo real. O objetivo é capturar mudanças em um banco de dados PostgreSQL, processá-las via Apache Spark e distribuí-las para armazenamento analítico e de consulta rápida.
 
-Para rodar o processador Spark, é necessário estar dentro do container. Execute o comando:
+Além do pipeline de dados, o projeto inclui uma aplicação Full Stack:
 
-1. fazer um post para: http://localhost:8083/connectors contando o body de: debezium-postgres.json
+- **Painel de Controle:** Para visualização e configuração do CDC.
+- **Dashboard:** Para consumo e exibição dos dados em tempo real processados pelo Spark.
 
-2. Limpe a pasta de checkpoint:
+## 🏗️ Arquitetura e Fluxo de Dados
+
+1. **Origem:** PostgreSQL 17 (com replicação lógica ativada).
+2. **Ingestão (CDC):** Kafka Connect + Debezium capturam as mudanças e publicam no Apache Kafka (KRaft).
+3. **Processamento:** Apache Spark consome os tópicos, realiza as transformações e orquestra a saída.
+4. **Armazenamento:**
+   - **Data Lake (MinIO):** Armazenamento estruturado na arquitetura Medallion (`raw`, `silver`, `gold`).
+   - **Camada de Serviço (Redis):** Cache de métricas em tempo real para consumo do Dashboard.
+
+---
+
+## ⚡ Como Executar
+
+### 1. Subindo a Infraestrutura (Docker)
+
+Primeiro, inicie todos os serviços definidos no Docker Compose:
 
 ```bash
-rm -rf /tmp/checkpoints/
+docker compose up -d
 ```
 
-3. Inicie o Spark:
+Nota: Aguarde alguns instantes para que todos os serviços fiquem saudáveis (o MinIO criará os buckets e o Spark baixará os JARs necessários automaticamente).
+
+### 2. Registrando o Conector Debezium
+
+Com o Kafka Connect rodando, envie a configuração do conector para iniciar a captura do PostgreSQL:
+Nota: Se estiver em ambiente windows, use o git bash para rodar o comando abaixo.
 
 ```bash
-/opt/spark-jobs/run.sh cdc_processor.py
+curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" \
+localhost:8083/connectors/ \
+-d @connectors/debezium-postgres.json
 ```
+
+### 3. Executando o Processador Spark
+
+Para rodar o job do Spark, você precisa acessar o container do Spark Master ou submeter o script diretamente:
+
+```bash
+# Limpe a pasta de checkpoint (se houver execuções anteriores)
+docker exec -it cdc-spark-master rm -rf /tmp/checkpoints/
+
+# Inicie o job do Spark
+docker exec -it cdc-spark-master /opt/spark-jobs/run.sh /opt/spark-jobs/jobs/emprestimos/stream.py
+```
+
+### 4. Executando o Painel Full Stack
+
+...
 
 ## 🌐 Portas de acesso
 
