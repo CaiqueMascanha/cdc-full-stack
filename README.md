@@ -55,7 +55,15 @@ docker exec -it cdc-spark-master rm -rf /tmp/checkpoints/
 docker exec -it cdc-spark-master /opt/spark-jobs/run.sh jobs/emprestimos/stream.py
 ```
 
-### 4. Executando o Painel Full Stack
+### 4. Executando o Backend Dashboard
+
+Deve rodar o seguinte comando dentro da pasta backend/dashboard/api:
+
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+### 5. Executando o Painel Full Stack
 
 ...
 

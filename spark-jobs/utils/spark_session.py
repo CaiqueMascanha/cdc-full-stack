@@ -1,6 +1,6 @@
 from pyspark.sql import SparkSession
 
-def create_session(app_name: str, checkpoint_dir: str) -> SparkSession:
+def create_session(app_name: str) -> SparkSession:
     spark = SparkSession.builder \
         .appName(app_name) \
         .master('spark://spark-master:7077') \
@@ -11,6 +11,10 @@ def create_session(app_name: str, checkpoint_dir: str) -> SparkSession:
         .config('spark.hadoop.fs.s3a.secret.key', 'minioadmin123') \
         .config('spark.hadoop.fs.s3a.path.style.access', 'true') \
         .config('spark.hadoop.fs.s3a.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem') \
+        .config('spark.hadoop.fs.s3a.connection.timeout', '200000') \
+        .config('spark.hadoop.fs.s3a.socket.timeout', '200000') \
+        .config('spark.hadoop.fs.s3a.connection.establish.timeout', '5000') \
+        .config('spark.hadoop.fs.s3a.attempts.maximum', '3') \
         .getOrCreate()
         
     spark.sparkContext.setLogLevel('WARN')

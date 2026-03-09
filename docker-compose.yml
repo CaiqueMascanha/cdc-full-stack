@@ -5,7 +5,7 @@
 #   Kafka:        4.1.1  (KRaft - sem Zookeeper)
 #   Kafka Connect: 4.1.1 (com Debezium 3.4.2)
 #   Debezium:     3.4.2.Final
-#   PostgreSQL:   17
+#   PostgreSQL:   13
 #   Spark:        4.0 (bitnami)
 #   MinIO:        latest (RELEASE)
 #   Redis:        7.4
@@ -31,7 +31,7 @@ volumes:
 # =============================================================
 services:
   # -----------------------------------------------------------
-  # POSTGRESQL 17 - Banco de origem CDC
+  # POSTGRESQL 16 - Banco de origem CDC
   # -----------------------------------------------------------
   postgres:
     image: postgres:17
@@ -54,6 +54,8 @@ services:
       - 'max_replication_slots=10'
       - '-c'
       - 'max_wal_senders=10'
+      - '-c'
+      - 'ssl=off'
     networks:
       - cdc-network
     healthcheck:
@@ -72,14 +74,15 @@ services:
     ports:
       - '9092:9092'
       - '9093:9093'
+      - '29092:29092'
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://cdc-kafka:9092,EXTERNAL://localhost:29092
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@cdc-kafka:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -270,10 +273,12 @@ services:
       curl -fL -o /jars/delta-spark.jar 'https://repo1.maven.org/maven2/io/delta/delta-spark_2.13/4.0.0/delta-spark_2.13-4.0.0.jar' &&
       echo '>>> Baixando delta-storage...' &&
       curl -fL -o /jars/delta-storage.jar 'https://repo1.maven.org/maven2/io/delta/delta-storage/4.0.0/delta-storage-4.0.0.jar' &&
+      echo '>>> Baixando hadoop-aws s3 compat...' &&
+      curl -fL -o /jars/aws-sdk-v1-compat.jar 'https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.262/aws-java-sdk-bundle-1.12.262.jar' &&
+      echo '>>> Baixando aws-sdk-bundle v2...' &&
+      curl -fL -o /jars/aws-sdk-bundle.jar 'https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/2.29.52/bundle-2.29.52.jar' &&
       echo '>>> Baixando hadoop-aws (S3/MinIO)...' &&
-      curl -fL -o /jars/hadoop-aws.jar 'https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.4/hadoop-aws-3.3.4.jar' &&
-      echo '>>> Baixando aws-sdk-bundle...' &&
-      curl -fL -o /jars/aws-sdk-bundle.jar 'https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.262/aws-java-sdk-bundle-1.12.262.jar' &&
+      curl -fL -o /jars/hadoop-aws.jar 'https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.4.1/hadoop-aws-3.4.1.jar' &&
       echo '>>> Todos os JARs baixados!'"
 
   # -----------------------------------------------------------
@@ -313,8 +318,9 @@ services:
       /bin/sh -c "
         mc alias set local http://minio:9000 minioadmin minioadmin123;
         mc mb --ignore-existing local/raw;
-        mc mb --ignore-existing local/silver
+        mc mb --ignore-existing local/silver;
         mc mb --ignore-existing local/gold;
+        mc mb --ignore-existing local/checkpoints;
         echo 'Buckets criados com sucesso!';
         exit 0;
       "

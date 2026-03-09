@@ -132,38 +132,6 @@ CREATE TRIGGER trg_emprestimo_aprovado
     FOR EACH ROW EXECUTE FUNCTION fn_aprovar_emprestimo();
 
 -- =============================================================
--- DADOS FAKE: emprestimos (15 solicitacoes - varios status)
--- =============================================================
-INSERT INTO public.emprestimos (cliente_nome, cliente_cpf, cliente_email, valor_solicitado, taxa_juros_proposta, parcelas_solicitadas, finalidade, status, motivo_reprovacao) VALUES
-('Ana Silva',        '123.456.789-00', 'ana.silva@email.com',       15000.00, 1.99, 24, 'Reforma residencial',    'pendente',   NULL),
-('Bruno Costa',      '234.567.890-11', 'bruno.costa@email.com',      8000.00, 2.49, 12, 'Compra de veiculo',      'em_analise', NULL),
-('Carla Mendes',     '345.678.901-22', 'carla.mendes@email.com',    25000.00, 1.79, 36, 'Capital de giro',        'em_analise', NULL),
-('Diego Rocha',      '456.789.012-33', 'diego.rocha@email.com',      5000.00, 2.99,  6, 'Viagem',                 'reprovado',  'Score de credito insuficiente'),
-('Elisa Ferreira',   '567.890.123-44', 'elisa.ferreira@email.com',  50000.00, 1.59, 48, 'Aquisicao de imovel',    'pendente',   NULL),
-('Felipe Alves',     '678.901.234-55', 'felipe.alves@email.com',    12000.00, 2.19, 18, 'Educacao',               'em_analise', NULL),
-('Gabriela Lima',    '789.012.345-66', 'gabriela.lima@email.com',    3000.00, 3.49,  6, 'Emergencia medica',      'reprovado',  'Renda incompativel com o valor'),
-('Henrique Souza',   '890.123.456-77', 'henrique.souza@email.com',  18000.00, 1.89, 30, 'Reforma comercial',      'pendente',   NULL),
-('Isabela Nunes',    '901.234.567-88', 'isabela.nunes@email.com',    9000.00, 2.29, 12, 'Compra de equipamentos', 'em_analise', NULL),
-('Joao Pereira',     '012.345.678-99', 'joao.pereira@email.com',    30000.00, 1.69, 48, 'Expansao de negocio',    'pendente',   NULL),
-('Karen Oliveira',   '111.222.333-44', 'karen.oliveira@email.com',   6000.00, 2.79,  9, 'Consolidacao de dividas','cancelado',  NULL),
-('Lucas Martins',    '222.333.444-55', 'lucas.martins@email.com',   20000.00, 1.99, 36, 'Reforma residencial',    'em_analise', NULL),
-('Marina Castro',    '333.444.555-66', 'marina.castro@email.com',    4500.00, 3.19,  6, 'Viagem internacional',   'pendente',   NULL),
-('Nicolas Barbosa',  '444.555.666-77', 'nicolas.barbosa@email.com', 11000.00, 2.09, 24, 'Compra de veiculo',      'em_analise', NULL),
-('Olivia Santos',    '555.666.777-88', 'olivia.santos@email.com',   35000.00, 1.75, 48, 'Aquisicao de imovel',    'pendente',   NULL);
-
--- =============================================================
--- APROVANDO alguns emprestimos (trigger popula emprestimos_aprovados)
--- =============================================================
-UPDATE public.emprestimos SET status = 'aprovado' WHERE cliente_cpf IN (
-    '123.456.789-00',
-    '345.678.901-22',
-    '678.901.234-55',
-    '890.123.456-77',
-    '222.333.444-55',
-    '555.666.777-88'
-);
-
--- =============================================================
 -- REPLICA IDENTITY para CDC (Debezium capturar todos os campos)
 -- =============================================================
 ALTER TABLE public.emprestimos REPLICA IDENTITY FULL;

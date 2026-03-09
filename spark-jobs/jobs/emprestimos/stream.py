@@ -11,12 +11,11 @@ KAFKA_TOPIC_SOLICITADOS_INPUT  = "cdc.public.emprestimos"
 KAFKA_TOPIC_APROVADOS_INPUT    = "cdc.public.emprestimos_aprovados"
 KAFKA_TOPIC_SOLICITADOS_OUTPUT = "cdc.public.emprestimos_solicitados_agregado_diario"
 KAFKA_TOPIC_APROVADOS_OUTPUT   = "cdc.public.emprestimos_aprovados_agregado_diario"
-CHECKPOINT_DIR = "/tmp/checkpoints/emprestimos"
-CHECKPOINT_AGREGADO_DIR = "/tmp/checkpoints/emprestimos_solicitados_agregados"
-CHECKPOINT_APROVADOS_DIR = "/tmp/checkpoints/emprestimos_aprovados"
+CHECKPOINT_DIR = "s3a://checkpoints/emprestimos"
+CHECKPOINT_AGREGADO_DIR = "s3a://checkpoints/emprestimos_solicitados_agregados"
+CHECKPOINT_APROVADOS_DIR = "s3a://checkpoints/emprestimos_aprovados"
 
-spark = create_session("CDC - Emprestimos", CHECKPOINT_DIR)
-spark.conf.set("spark.sql.streaming.statefulOperator.checkCorrectness.enabled", "false")
+spark = create_session("CDC - Emprestimos")
 
 window_latest = Window.partitionBy('id').orderBy(F.col('ts_ms').desc())
 
@@ -120,7 +119,7 @@ query_kafka_solicitados = df_agregado_solicitados \
     .option('kafka.bootstrap.servers', KAFKA_BROKER) \
     .option('topic', KAFKA_TOPIC_SOLICITADOS_OUTPUT) \
     .option('checkpointLocation', CHECKPOINT_AGREGADO_DIR) \
-    .trigger(processingTime='10 seconds') \
+    .trigger(processingTime='5 seconds') \
     .start()
     
 query_kafka_aprovados = df_agregado_aprovados \
@@ -131,7 +130,7 @@ query_kafka_aprovados = df_agregado_aprovados \
     .option('kafka.bootstrap.servers', KAFKA_BROKER) \
     .option('topic', KAFKA_TOPIC_APROVADOS_OUTPUT) \
     .option('checkpointLocation', CHECKPOINT_APROVADOS_DIR) \
-    .trigger(processingTime='10 seconds') \
+    .trigger(processingTime='5 seconds') \
     .start()
     
 spark.streams.awaitAnyTermination()
